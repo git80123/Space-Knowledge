@@ -2,77 +2,162 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>太空探索</title>
+  <title>NASA 太空知识探索</title>
   <style>
     body { font-family: sans-serif; background: #000; color: #fff; text-align: center; padding: 2em; }
-    input { padding: 0.5em; font-size: 1em; width: 300px; }
+    input, select { padding: 0.5em; font-size: 1em; width: 280px; margin-bottom: 0.5em;}
     button { padding: 0.5em 1em; font-size: 1em; margin-left: 1em; }
-    #wiki-result, #nasa-result { margin-top: 2em; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .section { background: #111; border-radius: 10px; margin: 2em auto; max-width: 700px; padding: 2em 1em; box-shadow: 0 0 10px #222; }
+    #apod-result, #mars-result, #asteroid-result, #epic-result { margin-top: 2em; text-align: left; }
     img { max-width: 100%; display: block; margin: 1em auto; }
-    .search-section { margin-bottom: 3em; }
-    h2 { margin-bottom: 0.5em; }
+    iframe { display: block; margin: 1em auto; max-width: 100%; }
+    label { display: block; margin: 0.5em 0 0.2em 0;}
   </style>
 </head>
 <body>
-  <h1>🌌 太空探索知识网站</h1>
-  
-  <div class="search-section">
-    <h2>维基百科太空知识搜索</h2>
-    <input type="text" id="wiki-keyword" placeholder="输入太空相关词语" />
-    <button onclick="searchWiki()">搜索</button>
-    <div id="wiki-result"></div>
+  <h1>🌌 NASA 太空知识探索</h1>
+
+  <!-- APOD 天文每日一图 -->
+  <div class="section">
+    <h2>NASA 每日天文图片 (APOD)</h2>
+    <label>选择日期（可选）: <input type="date" id="apod-date" max="" /></label>
+    <button onclick="searchApod()">获取图片</button>
+    <div id="apod-result"></div>
   </div>
-  
-  <div class="search-section">
-    <h2>NASA 每日天文图片</h2>
-    <button onclick="searchNasa()">获取今日图片</button>
-    <div id="nasa-result"></div>
+
+  <!-- Mars Rover 火星探测车照片 -->
+  <div class="section">
+    <h2>火星探测车照片</h2>
+    <label>选择探测车: 
+      <select id="mars-rover">
+        <option value="curiosity">Curiosity（好奇号）</option>
+        <option value="opportunity">Opportunity（机遇号）</option>
+        <option value="spirit">Spirit（勇气号）</option>
+      </select>
+    </label>
+    <label>火星日(Sol, 0~3000): <input type="number" id="mars-sol" min="0" max="3000" value="1000"></label>
+    <button onclick="searchMars()">获取照片</button>
+    <div id="mars-result"></div>
   </div>
-  
+
+  <!-- Near Earth Objects 小行星 -->
+  <div class="section">
+    <h2>近地小行星（NeoWs）</h2>
+    <label>起始日期: <input type="date" id="asteroid-start" /></label>
+    <label>结束日期: <input type="date" id="asteroid-end" /></label>
+    <button onclick="searchAsteroid()">查询小行星</button>
+    <div id="asteroid-result"></div>
+  </div>
+
+  <!-- EPIC 地球多色成像 -->
+  <div class="section">
+    <h2>地球多色成像（EPIC）</h2>
+    <button onclick="searchEpic()">显示最近地球照片</button>
+    <div id="epic-result"></div>
+  </div>
+
   <script>
-    async function searchWiki() {
-      const input = document.getElementById('wiki-keyword').value.trim();
-      const resultDiv = document.getElementById('wiki-result');
-      if (!input) {
-        resultDiv.innerHTML = "<p>请输入关键词。</p>";
-        return;
-      }
-      const wikiUrl = "https://zh.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(input);
+    // 设置日期最大值为今天
+    document.getElementById('apod-date').max = new Date().toISOString().split('T')[0];
+    document.getElementById('asteroid-start').max = document.getElementById('asteroid-end').max = new Date().toISOString().split('T')[0];
+
+    // APOD
+    async function searchApod() {
+      const date = document.getElementById('apod-date').value;
+      let url = 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY';
+      if (date) url += `&date=${date}`;
+      const div = document.getElementById('apod-result');
+      div.innerHTML = '加载中...';
       try {
-        const response = await fetch(wikiUrl);
-        if (response.ok) {
-          const data = await response.json();
-          resultDiv.innerHTML = '<h3>' + data.title + '</h3><p>' + data.extract + '</p>';
-        } else {
-          resultDiv.innerHTML = "<p>未找到相关信息。</p>";
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        let media = '';
+        if (data.media_type === 'image') {
+          media = `<img src="${data.url}" alt="APOD" />`;
+        } else if (data.media_type === 'video') {
+          media = `<iframe src="${data.url}" height="400"></iframe>`;
         }
-      } catch (e) {
-        resultDiv.innerHTML = "<p>搜索出现错误，请稍后再试。</p>";
+        div.innerHTML = `<h3>${data.title}</h3>${media}<p>${data.explanation}</p><p>版权: ${data.copyright || 'Public Domain'}</p>`;
+      } catch {
+        div.innerHTML = '图片获取失败，请稍后再试。';
       }
     }
 
-    async function searchNasa() {
-      const resultDiv = document.getElementById('nasa-result');
-      const nasaUrl = "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY";
-      resultDiv.innerHTML = "<p>加载中...</p>";
+    // Mars Rover
+    async function searchMars() {
+      const rover = document.getElementById('mars-rover').value;
+      const sol = document.getElementById('mars-sol').value;
+      const url = `https://api.nasa.gov/mars-photos/api/v1/rovers/${rover}/photos?sol=${sol}&api_key=DEMO_KEY`;
+      const div = document.getElementById('mars-result');
+      div.innerHTML = '加载中...';
       try {
-        const res = await fetch(nasaUrl);
-        if (!res.ok) throw new Error("NASA API 请求失败");
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
         const data = await res.json();
-        let media = "";
-        if (data.media_type === "image") {
-          media = `<img src="${data.url}" alt="NASA 天文图片" />`;
-        } else if (data.media_type === "video") {
-          media = `<iframe src="${data.url}" width="100%" height="400" allowfullscreen></iframe>`;
+        if (data.photos && data.photos.length > 0) {
+          div.innerHTML = '';
+          data.photos.slice(0, 5).forEach(photo => {
+            div.innerHTML += `<p><b>${photo.camera.full_name}</b> 拍摄于 ${photo.earth_date}</p><img src="${photo.img_src}" alt="Mars Rover Photo" />`;
+          });
+        } else {
+          div.innerHTML = '此 Sol 没有照片，请尝试其它数值。';
         }
-        resultDiv.innerHTML = `
-          <h3>${data.title}</h3>
-          ${media}
-          <p>${data.explanation}</p>
-          <p>图片版权: ${data.copyright || "Public Domain"}</p>
-        `;
-      } catch (e) {
-        resultDiv.innerHTML = "<p>无法获取NASA天文图片。</p>";
+      } catch {
+        div.innerHTML = '照片获取失败，请稍后再试。';
+      }
+    }
+
+    // Near-Earth Asteroids
+    async function searchAsteroid() {
+      const start = document.getElementById('asteroid-start').value;
+      const end = document.getElementById('asteroid-end').value;
+      const div = document.getElementById('asteroid-result');
+      if (!start || !end) {
+        div.innerHTML = '请选择日期。';
+        return;
+      }
+      div.innerHTML = '加载中...';
+      const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${start}&end_date=${end}&api_key=DEMO_KEY`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        let html = '';
+        Object.values(data.near_earth_objects).forEach((objs, i) => {
+          objs.forEach(obj => {
+            html += `<p>
+              <b>${obj.name}</b> （编号: ${obj.id}）<br>
+              危险: ${obj.is_potentially_hazardous_asteroid ? '是' : '否'}<br>
+              最近距离地球: ${Number(obj.close_approach_data[0].miss_distance.kilometers).toLocaleString()} km<br>
+              直径: ${obj.estimated_diameter.meters.estimated_diameter_min.toFixed(0)} ~ ${obj.estimated_diameter.meters.estimated_diameter_max.toFixed(0)} 米</p>`;
+          });
+        });
+        div.innerHTML = html || '该日期内没有记录到近地小行星。';
+      } catch {
+        div.innerHTML = '小行星数据获取失败。';
+      }
+    }
+
+    // EPIC
+    async function searchEpic() {
+      const div = document.getElementById('epic-result');
+      div.innerHTML = '加载中...';
+      try {
+        // 获取最近一组图片的日期
+        const resp = await fetch('https://api.nasa.gov/EPIC/api/natural?api_key=DEMO_KEY');
+        if (!resp.ok) throw new Error();
+        const data = await resp.json();
+        if (!data.length) { div.innerHTML = "暂无图片"; return; }
+        const dateObj = data[0].date.split(' ')[0].replace(/-/g,'/');
+        let imgsHtml = '';
+        data.slice(0, 5).forEach(img => {
+          const imgUrl = `https://epic.gsfc.nasa.gov/archive/natural/${dateObj}/jpg/${img.image}.jpg`;
+          imgsHtml += `<p>${img.date}</p><img src="${imgUrl}" alt="EPIC Earth" />`;
+        });
+        div.innerHTML = imgsHtml;
+      } catch {
+        div.innerHTML = '地球图片获取失败。';
       }
     }
   </script>
